@@ -34,8 +34,8 @@ The system performs the following steps:
 To install and run this project, clone the repository and install the required dependencies:
 
 ```bash
-git clone https://github.com/your-repo/community-detection-recommendation.git
-cd community-detection-recommendation
+git clone https://github.com/Skripkon/DatingGNN
+cd DatingGNN
 pip install -r requirements.txt
 ```
 
