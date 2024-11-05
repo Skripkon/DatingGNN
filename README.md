@@ -37,3 +37,20 @@ To install and run this project, clone the repository and install the required d
 git clone https://github.com/your-repo/community-detection-recommendation.git
 cd community-detection-recommendation
 pip install -r requirements.txt
+```
+
+## For Developers
+
+1. Install the necessary libraries for development:
+
+```bash
+pip install -r requirements_dev.txt
+```
+
+2. Before pushing any changes, format your code using ```autopep8```:
+
+```bash
+autopep8 --in-place $(git ls-files '*.py' '*.ipynb')
+```
+
+This will automatically apply PEP 8 style formatting to all Python (```.py```) and Jupyter Notebook (```.ipynb```) files.
