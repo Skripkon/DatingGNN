@@ -1,2 +1,39 @@
-# DatingGNN
-A GNN-based approach to identify communities among users of a dating app and recommend potential matches to each other
+# Community Detection and Recommendation System for a Dating App
+
+This project implements a community detection and user recommendation system for a dating app using Graph Neural Networks (GNNs).
+
+## Overview
+
+The system performs the following steps:
+
+1. **Community Detection**: 
+   - Identifies communities of users based on shared interests, such as communication, friendship, relationships, and sex.
+
+2. **User Ranking**: 
+   - For each user, ranks other users within their respective communities to identify the top N most relevant matches.
+
+3. **Graph Representation**:
+   - **Nodes**: Represent individual users.
+   - **Edges**: Created between users based on:
+     - **Cosine similarity** of their profile embeddings (text descriptions).
+     - **Mutual interests** such as age, sex, location, etc.
+
+## How it Works
+
+1. **Profile Embedding**: 
+   - Users' profile descriptions are embedded into a vector space. Cosine similarity is used to calculate the distance between users' embeddings.
+
+2. **Interest Matching**: 
+   - Additional features (age, sex, location, etc.) are used to enhance the edge creation between users with similar interests.
+
+3. **Graph Neural Networks**:
+   - GNNs are applied to detect communities within the user graph and rank the most relevant users for recommendations.
+
+## Installation
+
+To install and run this project, clone the repository and install the required dependencies:
+
+```bash
+git clone https://github.com/your-repo/community-detection-recommendation.git
+cd community-detection-recommendation
+pip install -r requirements.txt
