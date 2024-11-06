@@ -54,3 +54,18 @@ autopep8 --in-place $(git ls-files '*.py' '*.ipynb')
 ```
 
 This will automatically apply PEP 8 style formatting to all Python (```.py```) and Jupyter Notebook (```.ipynb```) files.
+
+
+## Dataset
+
+```bibtex
+@article{article,
+   author = {Kim, Albert and Escobedo-Land, Adriana},
+   year = {2015},
+   month = {07},
+   pages = {},
+   title = {OkCupid Data for Introductory Statistics and Data Science Courses},
+   volume = {23},
+   journal = {Journal of Statistics Education},
+   doi = {10.1080/10691898.2015.11889737}
+}
