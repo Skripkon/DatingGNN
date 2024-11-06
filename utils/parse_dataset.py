@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def parse_dataset() -> pd.DataFrame:
     """
     Parses the dataset from a CSV file and returns it as a Pandas DataFrame.
@@ -24,6 +25,8 @@ def parse_dataset() -> pd.DataFrame:
     return data
 
 # TODO
+
+
 def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     """
     Preprocesses the input dataset and returns a cleaned version.

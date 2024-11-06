@@ -1,3 +1,4 @@
+from utils.parse_dataset import parse_dataset
 import pickle
 import torch
 import sys
@@ -7,7 +8,6 @@ from sentence_transformers import SentenceTransformer
 
 from embedders_list import EMBEDDERS
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.parse_dataset import parse_dataset
 
 
 def dump_embeddings(
