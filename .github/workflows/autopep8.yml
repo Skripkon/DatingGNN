@@ -10,14 +10,24 @@ jobs:
         python-version: ["3.8", "3.9", "3.10"]
     steps:
     - uses: actions/checkout@v4
+    
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install autopep8
-    - name: Analysing the code with autopep8
+    
+    - name: Check code style with autopep8
       run: |
-        autopep8 --in-place $(git ls-files '*.py' '*.ipynb')
+        # Capture the output of autopep8
+        output=$(autopep8 --diff $(git ls-files '*.py' '*.ipynb') || true)
+        
+        # If there is any diff, fail the job
+        if [ -n "$output" ]; then
+          echo "$output"
+          exit 1
+        fi
