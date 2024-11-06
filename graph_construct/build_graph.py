@@ -19,11 +19,11 @@ def build_graph(data: pd.DataFrame, pairwise_features: List[str] = None) -> nx.G
 
     # Default features to compare if not provided
     if pairwise_features is None:
-        pairwise_features = ['status', 'drinks', 'drugs', 'smokes', 'pets', 'offspring']
+        pairwise_features = ['status', 'drinks', 'drugs', 'smokes', 'pets', 'location']
 
     def check_compatibility(user1: pd.Series, user2: pd.Series) -> bool:
         """
-        Checks if two users are compatible based on their sex, orientation, and shared features.
+        Checks if two users are compatible based on 'pairwise_features'.
 
         Parameters:
         - user1, user2 (pd.Series): Two user rows from the DataFrame to be compared.
@@ -35,9 +35,12 @@ def build_graph(data: pd.DataFrame, pairwise_features: List[str] = None) -> nx.G
         if not is_sex_orientation_compatible(user1, user2):
             return False
 
-        # Step 2: Check if at least 4 out of 6 features match
-        match_count = sum(user1[feature] == user2[feature] for feature in pairwise_features)
-        return match_count >= 5
+        # Step 2: Check if all features match
+        match_count = sum(
+            (user1[feature] == user2[feature] if user1[feature] is not None and user2[feature] is not None else 0)
+            for feature in pairwise_features
+        )
+        return match_count == len(pairwise_features)
 
     def is_sex_orientation_compatible(user1: pd.Series, user2: pd.Series) -> bool:
         """
