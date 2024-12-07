@@ -56,7 +56,7 @@ def dump_embeddings(
         column_embeddings = embedder.encode(column_data, convert_to_tensor=True, show_progress_bar=True)
 
         # Save embeddings in the dictionary
-        embeddings_data[column] = column_embeddings
+        embeddings_data[column] = column_embeddings.cpu().numpy()
 
     # Dump the embeddings to the file
     with open(embeddings_file, "wb") as filehandler:
@@ -79,13 +79,12 @@ def get_optimal_device() -> str:
 def main():
     # Parse the dataset
     data = parse_dataset()
-
     # Iterate over each embedder and dump embeddings
     for pretty_name, hugging_face_name in EMBEDDERS.items():
         print(f"Processing embeddings for {pretty_name}...")
         dump_embeddings(
             data=data,
-            columns_to_embed=["essay0"],  # Ensure this is a list, even if it's a single column
+            columns_to_embed=[f"essay{i}" for i in range(0, 10)],  # Ensure this is a list, even if it's a single column
             pretty_name=pretty_name,
             hugging_face_name=hugging_face_name
         )
