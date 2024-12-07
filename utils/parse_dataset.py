@@ -1,4 +1,7 @@
 import pandas as pd
+import pandas as pd
+import numpy as np
+from pandas.api.types import CategoricalDtype
 
 
 def parse_dataset() -> pd.DataFrame:
@@ -14,7 +17,6 @@ def parse_dataset() -> pd.DataFrame:
 
     Example:
         data = parse_dataset()
-        print(data.head())
 
     Raises:
         FileNotFoundError: If the CSV file (`data/okcupid_profiles.csv`) is not found in the expected location.
@@ -24,35 +26,182 @@ def parse_dataset() -> pd.DataFrame:
     data = pd.read_csv("data/okcupid_profiles.csv")
     return data
 
-# TODO
-
 
 def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     """
     Preprocesses the input dataset and returns a cleaned version.
 
-    This function is a placeholder and is meant to be implemented for cleaning, transforming, 
-    or processing the dataset in any required way. The preprocessing might include steps like:
-    - Handling missing data ???
-    - Encoding categorical variables ???
-    - Normalizing or scaling numerical features ???
-    - Text preprocessing (e.g., tokenization, removing stopwords, etc.) ???
-    - Feature engineering ???
-
     Args:
         data (pd.DataFrame): The raw dataset to be preprocessed, which is expected to be a DataFrame.
 
     Returns:
-        pd.DataFrame: A cleaned version of the dataset after preprocessing. The structure of the returned
-        DataFrame will depend on the specific preprocessing applied.
-
-    Raises:
-        NotImplementedError: This function is currently not implemented. It should raise an exception if
-        called before being implemented.
+        pd.DataFrame: A cleaned version of the dataset after preprocessing.
 
     Example:
         data = parse_dataset()
         preprocessed_data = preprocess_dataset(data)
-        print(preprocessed_data.head())
     """
-    raise NotImplementedError("The preprocess_dataset function is not yet implemented.")
+
+    def drop_unnecessary_columns(data: pd.DataFrame) -> pd.DataFrame:
+        data = data.drop(columns=["income", "diet", "drugs"])  # Too many missing values
+        data = data.drop(columns=["last_online", "sign"])  # These column bring no value
+        data = data.drop(columns=[f"essay{i}" for i in range(10)])  # Their embeddings are saved
+        data = data.drop(columns=["ethnicity"])  # To avoid being accused of racism
+        data = data.drop(columns=["pets"])  # Two other columns were added (likes_cats and likes_dogs)
+        data = data.drop(columns=["speaks"])  # 99.9% speak English
+        data = data.drop(columns=["offspring"])  # too many missing values
+        return data
+
+    # Convert inches to cm
+    data["height"] = data["height"].apply(lambda x: round(x * 2.54, 0))
+
+    # Handle missing values
+    data["age"] = data["age"].fillna(data["age"].mean())
+    data["height"] = data["height"].fillna(data["height"].mean())
+
+    def map_cat(a_string, a_dic):
+        """
+        a_string: a string we want to map with a_dic
+        a_dic: a dictionary whose keys are tuples
+        """
+        for k in a_dic:
+            if a_string in k:
+                return a_dic.get(k)
+        return np.nan
+
+    body_types_dic = {
+        ("skinny", "used up", "thin"): "ectomorph",
+        ("average", "fit", "athletic", "jacked"): "mesomorph",
+        ("a little extra", "curvy", "full figured"): "endomorph",
+    }
+
+    body_categories = CategoricalDtype(
+        categories=["ectomorph", "mesomorph", "endomorph"], ordered=True
+    )
+
+    data["body_type"] = data.body_type.apply(map_cat, args=(body_types_dic,)).astype(
+        body_categories
+    )
+    data.body_type = data.body_type.fillna(
+        body_categories.categories[int(np.median(data.body_type.cat.codes))]
+    )
+
+    educationcategories = CategoricalDtype(
+        categories=[
+            "High school or less",
+            "Some college",
+            "College or more",
+            "Post graduate degree",
+        ],
+        ordered=True,
+    )
+
+    educationdic = {
+        (
+            "graduated from high school",
+            "dropped out of high school",
+            "working on high school",
+            "high school",
+        ): "High school or less",
+        (
+            "working on two-year college",
+            "dropped out of space camp",
+            "two-year college",
+            "graduated from two-year college",
+            "dropped out of college/university",
+            "dropped out of two-year college",
+            "dropped out of med school",
+            "dropped out of law school",
+        ): "Some college",
+        (
+            "working on college/university",
+            "working on space camp",
+            "graduated from masters program",
+            "graduated from college/university",
+            "working on masters program",
+            "graduated from space camp",
+            "college/university",
+            "graduated from law school",
+            "working on ph.d program",
+            "space camp",
+            "graduated from med school",
+            "working on med school",
+            "masters program",
+            "dropped out of ph.d program",
+            "law school",
+            "dropped out of masters program",
+            "working on law school",
+            "med school",
+        ): "College or more",
+        ("graduated from ph.d program", "ph.d program"): "Post graduate degree",
+    }
+
+    data["education"] = data.education.apply(map_cat, args=(educationdic,)).astype(
+        educationcategories
+    )
+
+    # Fill in missing values
+    data.education = data.education.fillna(
+        educationcategories.categories[int(np.median(data["education"].cat.codes))]
+    ).astype(educationcategories)
+
+    smokes_dic = {
+        ("no",): "no",
+        ("sometimes", "when drinking", "trying to quit"): "sometimes",
+        ("yes",): "yes",
+    }
+    smokes_categories = CategoricalDtype(
+        categories=["no", "sometimes", "yes"], ordered=True
+    )
+    data["smokes"] = data.smokes.apply(map_cat, args=(smokes_dic,)).astype(smokes_categories)
+    data.smokes = data.smokes.fillna("no").astype(smokes_categories)
+    data.smokes.value_counts(dropna=False).sort_index()
+
+    import re
+
+    data.pets = data.pets.fillna("No")
+
+    def likes_pet(s, species):
+        dogs_regex = re.compile(r"((?<!dis)likes |has )dogs")
+        cats_regex = re.compile(r"((?<!dis)likes |has )cats")
+        if species == "dog":
+            return "Yes" if bool(dogs_regex.search(s)) else "No"
+        elif species == "cat":
+            return "Yes" if bool(cats_regex.search(s)) else "No"
+        else:
+            return "No"
+
+    data["likes_dogs"] = data.pets.apply(likes_pet, args=("dog",))
+    data["likes_cats"] = data.pets.apply(likes_pet, args=("cat",))
+
+    data["likes_dogs"] = pd.Categorical(
+        data["likes_dogs"], categories=["No", "Yes"], ordered=True
+    )
+    data["likes_cats"] = pd.Categorical(
+        data["likes_cats"], categories=["No", "Yes"], ordered=True
+    )
+
+    # drop non-traditional orientation for the sake of simplicity
+
+    data = data[data["orientation"] == "straight"]
+    data["religion"] = data["religion"].fillna("agnosticism")  # Expectably, agnosticism is the most popular answer
+    # Drinks
+    drinks_categories = CategoricalDtype(
+        categories=[
+            "not at all",
+            "rarely",
+            "socially",
+            "often",
+            "very often",
+            "desperately",
+        ],
+        ordered=True,
+    )
+    data["drinks"] = data.drinks.astype(drinks_categories)
+    data["drinks"] = data["drinks"].fillna(
+        drinks_categories.categories[int(np.median(data["drinks"].cat.codes))]
+    )
+    data["job"] = data["job"].fillna("unspecified")  # ~6k out of 50 didn't specify their occipation, but there are onl 21 unique values. Hence, this column might be important
+    data = drop_unnecessary_columns(data)
+
+    assert data.isna().sum().sum() == 0, "Deal with the NaN values!"
