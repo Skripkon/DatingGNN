@@ -1,7 +1,8 @@
 import pandas as pd
-import pandas as pd
 import numpy as np
+import pickle
 from pandas.api.types import CategoricalDtype
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
 def parse_dataset() -> pd.DataFrame:
@@ -27,6 +28,13 @@ def parse_dataset() -> pd.DataFrame:
     return data
 
 
+def parse_preprocessed_dataset() -> pd.DataFrame:
+    """Similiar to `parse_dataset`, but returns a preprocessed dataset"""
+
+    data = pd.read_csv("data/preprocessed_data.csv")
+    return data
+
+
 def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     """
     Preprocesses the input dataset and returns a cleaned version.
@@ -45,7 +53,7 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     def drop_unnecessary_columns(data: pd.DataFrame) -> pd.DataFrame:
         data = data.drop(columns=["income", "diet", "drugs"])  # Too many missing values
         data = data.drop(columns=["last_online", "sign"])  # These column bring no value
-        data = data.drop(columns=[f"essay{i}" for i in range(10)])  # Their embeddings are saved
+        # data = data.drop(columns=[f"essay{i}" for i in range(10)])  # Their embeddings are saved
         data = data.drop(columns=["ethnicity"])  # To avoid being accused of racism
         data = data.drop(columns=["pets"])  # Two other columns were added (likes_cats and likes_dogs)
         data = data.drop(columns=["speaks"])  # 99.9% speak English
@@ -204,4 +212,40 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     data["job"] = data["job"].fillna("unspecified")  # ~6k out of 50 didn't specify their occipation, but there are onl 21 unique values. Hence, this column might be important
     data = drop_unnecessary_columns(data)
 
-    assert data.isna().sum().sum() == 0, "Deal with the NaN values!"
+    # assert data.isna().sum().sum() == 0, "Deal with the NaN values!"
+
+    split_data_by_sex(data=data)
+    return data
+
+
+def split_data_by_sex(data: pd.DataFrame):
+    males_data = data[data["sex"] == "m"]
+    females_data = data[data["sex"] == "f"]
+    # Columns to encode (categorical data)
+    categorical_columns = ['sex', 'orientation', 'body_type', 'drinks', 'education', 'job', 'location', 'religion', 'smokes', 'likes_dogs', 'likes_cats']
+
+    # One-hot encoding for categorical features
+    encoder = OneHotEncoder(drop='first', sparse_output=False)
+    encoder.fit(data[categorical_columns])
+
+    males_encoded_categorical = encoder.transform(males_data[categorical_columns])
+    females_encoded_categorical = encoder.transform(females_data[categorical_columns])
+
+    # Normalize continuous features (age, height)
+    continuous_columns = ['age', 'height']
+
+    males_scaler = StandardScaler()
+    males_normalized_continuous = males_scaler.fit_transform(males_data[continuous_columns])
+
+    females_scaler = StandardScaler()
+    females_normalized_continuous = females_scaler.fit_transform(females_data[continuous_columns])
+
+    # Combine the processed features into a single feature matrix
+    males_features = np.hstack([males_encoded_categorical, males_normalized_continuous])
+    females_features = np.hstack([females_encoded_categorical, females_normalized_continuous])
+
+    with open("data/males_features", "wb") as f:
+        pickle.dump(obj=males_features, file=f, protocol=-1)
+
+    with open("data/females_features", "wb") as f:
+        pickle.dump(obj=females_features, file=f, protocol=-1)

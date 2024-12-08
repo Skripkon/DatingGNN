@@ -1,13 +1,13 @@
-from utils.parse_dataset import parse_dataset
-import pickle
-import torch
-import sys
-import os
-import pandas as pd
 from sentence_transformers import SentenceTransformer
+import torch
+import pandas as pd
+import os
+import pickle
+import sys
 
-from embedders_list import EMBEDDERS
+from embedders_list import BEST_EMBEDDER
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.parse_dataset import parse_preprocessed_dataset
 
 
 def dump_embeddings(
@@ -78,9 +78,9 @@ def get_optimal_device() -> str:
 
 def main():
     # Parse the dataset
-    data = parse_dataset()
+    data = parse_preprocessed_dataset()
     # Iterate over each embedder and dump embeddings
-    for pretty_name, hugging_face_name in EMBEDDERS.items():
+    for pretty_name, hugging_face_name in BEST_EMBEDDER.items():  # it used to be: in EMBEDDERS.items()
         print(f"Processing embeddings for {pretty_name}...")
         dump_embeddings(
             data=data,
