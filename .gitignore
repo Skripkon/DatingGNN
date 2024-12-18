@@ -1,3 +1,8 @@
+# Final code
+final_solution/*
+!final_solution/*.py
+!final_solution/*.ipynb
+
 # data, dumpings
 data/*
 embedders/embeddings/*
