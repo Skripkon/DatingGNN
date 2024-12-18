@@ -1,103 +1,96 @@
-import pandas as pd
-import numpy as np
-import networkx as nx
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
+import community as community_louvain
+import igraph as ig
+import leidenalg as la
+import networkx as nx
+import pandas as pd
 import pickle
+import torch
+import torch_geometric
 from tqdm import tqdm
 
-# Constants
-WEIGHT_THRESHOLD = 0.5
+
+class CommunityDetection:
+    def __init__(self, graph_path, output_path, data=None):
+        self.graph_path = graph_path
+        self.output_path = output_path
+        # Read graph
+        self.G = nx.read_weighted_edgelist(graph_path)
+        self.data = data
+
+    def apply_leiden(self):
+        ig_graph = ig.Graph.TupleList(self.G.edges(data=True), weights=True)
+
+        partition = la.find_partition(ig_graph, la.ModularityVertexPartition)
+
+        return {node: cluster for node, cluster in zip(self.G.nodes(), partition.membership)}
+
+    def apply_louvain(self):
+        partition = community_louvain.best_partition(self.G)
+        return partition
+
+    def apply_gcn(self):
+        gcn_model = GCN(input_dim=self.data.x.shape[1], hidden_dim=16, output_dim=8)
+        gcn_embeddings = self.train_model(gcn_model)
+        kmeans = KMeans(n_clusters=25)
+        kmeans.fit(gcn_embeddings)
+        gcn_labels = kmeans.labels_
+        return gcn_labels
+
+    def apply_graphsage(self):
+        graphsage_model = GraphSAGE(input_dim=self.data.x.shape[1], hidden_dim=16, output_dim=8)
+        graphsage_embeddings = self.train_model(graphsage_model)
+        kmeans = KMeans(n_clusters=25)
+        kmeans.fit(graphsage_embeddings)
+        graphsage_labels = kmeans.labels_
+        return graphsage_labels
+
+    def train_model(self, model, epochs=1000, lr=0.01):
+        """Train the GCN or GraphSAGE model."""
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        model.train()
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            embeddings = model(self.data)
+            loss = torch.nn.functional.mse_loss(embeddings, embeddings)
+            loss.backward()
+            optimizer.step()
+        return embeddings.detach().numpy()
+
+    def save_clusters(self, partition, method_name):
+        """Saves the community clusters to a CSV file."""
+        df = pd.DataFrame({
+            'vertex_id': list(partition.keys()),
+            'cluster_id': list(partition.values())
+        })
+        df.to_csv(f'{self.output_path}_{method_name}.csv', index=False)
+
+    def run(self):
+        leiden_partition = self.apply_leiden()
+        self.save_clusters(leiden_partition, 'Leiden')
+
+        louvain_partition = self.apply_louvain()
+        self.save_clusters(louvain_partition, 'Louvain')
+
+        gcn_labels = self.apply_gcn()
+        gcn_partition = {i: label for i, label in enumerate(gcn_labels)}
+        self.save_clusters(gcn_partition, 'GCN')
+
+        graphsage_labels = self.apply_graphsage()
+        graphsage_partition = {i: label for i, label in enumerate(graphsage_labels)}
+        self.save_clusters(graphsage_partition, 'GraphSAGE')
 
 
-class MaleEssayGraph:
-    def __init__(self, data_path, features_path, embeddings_path, weight_threshold=WEIGHT_THRESHOLD):
-        self.data_path = data_path
-        self.features_path = features_path
-        self.embeddings_path = embeddings_path
-        self.weight_threshold = weight_threshold
-
-        # Load data
-        self.data = pd.read_csv(data_path)
-        with open(features_path, "rb") as f:
-            self.encoded_features = pickle.load(f)
-
-        with open(embeddings_path, "rb") as f:
-            self.embeddings_male = pickle.load(f)
-        # WARNING: TODO CHANGE 100 to A BIGGER NUMBER !!! WARNING!!!!
-        # Select male indexes (first 100)
-        self.male_indexes = self.data[self.data["sex"] == "m"].index.values[:100]
-
-    def safe_cosine_similarity(self, embedding1, embedding2):
-        """Calculates cosine similarity with error handling for NaN values."""
-        if np.isnan(embedding1[0][0]) or np.isnan(embedding2[0][0]):
-            return 0
-        return cosine_similarity(embedding1, embedding2)[0][0]
-
-    def calculate_edge_weight(self, m1, m2):
-        """Calculates edge weight based on essay embeddings and features."""
-        total_similarity = 0
-        valid_essays = 0
-
-        for j in range(10):  # Iterate over all essays (0 to 9)
-            essay = f"essay{j}"
-            m1_embedding = self.embeddings_male[essay][m1].reshape(1, -1)
-            m2_embedding = self.embeddings_male[essay][m2].reshape(1, -1)
-            similarity = self.safe_cosine_similarity(m1_embedding, m2_embedding)
-            if similarity > 0:
-                total_similarity += similarity
-                valid_essays += 1
-
-        edge_weight = total_similarity / valid_essays if valid_essays > 0 else 0
-        edge_weight *= 0.3  # Essays account for 30%
-
-        # Add features similarity
-        m1_features = self.encoded_features[m1]
-        m2_features = self.encoded_features[m2]
-        edge_weight += 0.7 * self.safe_cosine_similarity(m1_features.reshape(1, -1), m2_features.reshape(1, -1))
-
-        return edge_weight
-
-    def build_graph(self):
-        """Builds the graph by adding nodes and weighted edges."""
-        G = nx.Graph()
-
-        # Add male nodes to the graph
-        for male_idx in self.male_indexes:
-            G.add_node(male_idx)
-
-        # Add edges
-        for m1 in tqdm(self.male_indexes, desc="Building edges"):
-            for m2 in self.male_indexes:
-                if m1 == m2:
-                    continue
-
-                edge_weight = self.calculate_edge_weight(m1, m2)
-
-                # Add edge if the weight is above the threshold
-                if edge_weight > self.weight_threshold:
-                    G.add_edge(m1, m2, weight=edge_weight)
-
-        return G
-
-    def save_graph(self, graph, output_path):
-        """Saves the graph to a file."""
-        nx.write_edgelist(graph, path=output_path, data=["weight"])
-
-
+# Main execution
 def main():
-    data_path = "../data/preprocessed_data.csv"
-    features_path = "../data/features"
-    embeddings_path = "../embedders/embeddings/embeddings_male.obj"
-    output_graph_path = "male_graph.edgelist"
+    graph_path = 'male_graph.edgelist'
+    output_path = 'male_clusters'
+    data = torch_geometric.data.Data()
 
-    # Initialize the graph builder
-    graph_builder = MaleEssayGraph(data_path, features_path, embeddings_path)
+    community_detector = CommunityDetection(graph_path, output_path, data)
 
-    # Build the graph
-    graph = graph_builder.build_graph()
-
-    # Save the graph to a file
-    graph_builder.save_graph(graph, output_graph_path)
+    community_detector.run()
 
 
 if __name__ == "__main__":
