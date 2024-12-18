@@ -209,7 +209,7 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     data["drinks"] = data["drinks"].fillna(
         drinks_categories.categories[int(np.median(data["drinks"].cat.codes))]
     )
-    data["job"] = data["job"].fillna("unspecified")  # ~6k out of 50 didn't specify their occipation, but there are onl 21 unique values. Hence, this column might be important
+    data["job"] = data["job"].fillna("unspecified")  # ~6k out of 50 didn't specify their occupation, but there are onl 21 unique values. Hence, this column might be important
     data = drop_unnecessary_columns(data)
 
     # assert data.isna().sum().sum() == 0, "Deal with the NaN values!"
@@ -219,33 +219,56 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def split_data_by_sex(data: pd.DataFrame):
-    males_data = data[data["sex"] == "m"]
-    females_data = data[data["sex"] == "f"]
-    # Columns to encode (categorical data)
-    categorical_columns = ['sex', 'orientation', 'body_type', 'drinks', 'education', 'job', 'location', 'religion', 'smokes', 'likes_dogs', 'likes_cats']
+    # males_data = data[data["sex"] == "m"]
+    # females_data = data[data["sex"] == "f"]
+    # # Columns to encode (categorical data)
+    # categorical_columns = ['sex', 'orientation', 'body_type', 'drinks', 'education', 'job', 'location', 'religion', 'smokes', 'likes_dogs', 'likes_cats']
 
+    # # One-hot encoding for categorical features
+    # encoder = OneHotEncoder(drop='first', sparse_output=False)
+    # encoder.fit(data[categorical_columns])
+
+    # males_encoded_categorical = encoder.transform(males_data[categorical_columns])
+    # females_encoded_categorical = encoder.transform(females_data[categorical_columns])
+
+    # # Normalize continuous features (age, height)
+    # continuous_columns = ['age', 'height']
+
+    # males_scaler = StandardScaler()
+    # males_normalized_continuous = males_scaler.fit_transform(males_data[continuous_columns])
+
+    # females_scaler = StandardScaler()
+    # females_normalized_continuous = females_scaler.fit_transform(females_data[continuous_columns])
+
+    # # Combine the processed features into a single feature matrix
+    # males_features = np.hstack([males_encoded_categorical, males_normalized_continuous])
+    # females_features = np.hstack([females_encoded_categorical, females_normalized_continuous])
+
+    # with open("data/males_features", "wb") as f:
+    #     pickle.dump(obj=males_features, file=f, protocol=-1)
+
+    # with open("data/females_features", "wb") as f:
+    #     pickle.dump(obj=females_features, file=f, protocol=-1)
+
+    # =========================== WITHOUT SPLITTING BY GENDER =======================================
+    # Columns to encode (categorical data)
+    categorical_columns = ['sex', 'orientation', 'body_type', 'drinks', 'education',
+                           'job', 'location', 'religion', 'smokes', 'likes_dogs', 'likes_cats']
     # One-hot encoding for categorical features
     encoder = OneHotEncoder(drop='first', sparse_output=False)
     encoder.fit(data[categorical_columns])
-
-    males_encoded_categorical = encoder.transform(males_data[categorical_columns])
-    females_encoded_categorical = encoder.transform(females_data[categorical_columns])
+    encoded_categorical = encoder.transform(data[categorical_columns])
 
     # Normalize continuous features (age, height)
     continuous_columns = ['age', 'height']
-
-    males_scaler = StandardScaler()
-    males_normalized_continuous = males_scaler.fit_transform(males_data[continuous_columns])
-
-    females_scaler = StandardScaler()
-    females_normalized_continuous = females_scaler.fit_transform(females_data[continuous_columns])
+    scaler = StandardScaler()
+    normalized_continuous = scaler.fit_transform(data[continuous_columns])
 
     # Combine the processed features into a single feature matrix
-    males_features = np.hstack([males_encoded_categorical, males_normalized_continuous])
-    females_features = np.hstack([females_encoded_categorical, females_normalized_continuous])
+    features = np.hstack([encoded_categorical, normalized_continuous])
 
-    with open("data/males_features", "wb") as f:
-        pickle.dump(obj=males_features, file=f, protocol=-1)
-
-    with open("data/females_features", "wb") as f:
-        pickle.dump(obj=females_features, file=f, protocol=-1)
+    print("DUMPING")
+    # Save the features to a file
+    with open("data/features", "wb") as f:
+        pickle.dump(obj=features, file=f, protocol=-1)
+    # =================================================================================================
