@@ -6,10 +6,11 @@ import networkx as nx
 
 
 class ClusterCentroidCalculator:
-    def __init__(self, clusters_path, graph):
+    def __init__(self, clusters_path, graph, clustering_algorithm):
         self.clusters_path = clusters_path
         self.G = graph
         self.clusters = pd.read_csv(clusters_path)
+        self.clustering_algorithm = clustering_algorithm
 
     def compute_cluster_centroid(self, cluster: int):
         """Computes the centroid of a given cluster by calculating the mean position of its vertices."""
@@ -65,15 +66,16 @@ class ClusterCentroidCalculator:
 
 # Main execution
 def main():
-    clusters_path = "male_clusters.csv"
+    clustering_algorithm = "Louvain"
+    clusters_path = f"male_clusters_{clustering_algorithm}.csv"
     graph_path = 'male_graph.edgelist'
-    output_path = "cluster_to_centroid"
+    output_path = f"cluster_to_centroid_{clustering_algorithm}"
 
     # Read the graph
     G = nx.read_weighted_edgelist(graph_path)
 
     # Initialize the cluster centroid calculator
-    centroid_calculator = ClusterCentroidCalculator(clusters_path, G)
+    centroid_calculator = ClusterCentroidCalculator(clusters_path, G, clustering_algorithm=clustering_algorithm)
 
     # Run the computation and save results
     centroid_calculator.run(output_path)

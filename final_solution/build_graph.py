@@ -1,96 +1,104 @@
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.cluster import KMeans
-import community as community_louvain
-import igraph as ig
-import leidenalg as la
-import networkx as nx
 import pandas as pd
+import numpy as np
+import networkx as nx
+from sklearn.metrics.pairwise import cosine_similarity
+from scipy.spatial.distance import cdist
 import pickle
-import torch
-import torch_geometric
 from tqdm import tqdm
+from sklearn.preprocessing import LabelEncoder
+
+WEIGHT_THRESHOLD = 0.8
 
 
-class CommunityDetection:
-    def __init__(self, graph_path, output_path, data=None):
-        self.graph_path = graph_path
-        self.output_path = output_path
-        # Read graph
-        self.G = nx.read_weighted_edgelist(graph_path)
-        self.data = data
+class MaleGraph:
+    def __init__(self, data_path, features_path, embeddings_path, weight_threshold=WEIGHT_THRESHOLD):
+        self.data_path = data_path
+        self.features_path = features_path
+        self.embeddings_path = embeddings_path
+        self.weight_threshold = weight_threshold
 
-    def apply_leiden(self):
-        ig_graph = ig.Graph.TupleList(self.G.edges(data=True), weights=True)
+        GRAPH_SIZE = 2000  # TO BE INCREASED
+        # Load data
+        self.data = pd.read_csv(data_path)
+        self.male_indexes = self.data[self.data["sex"] == "m"].index.values[:GRAPH_SIZE]
+        self.data = self.data.iloc[self.male_indexes]
 
-        partition = la.find_partition(ig_graph, la.ModularityVertexPartition)
+        self.cat_features = ["body_type", "drinks", "education", "job", "location", "religion", "smokes", "likes_dogs", "likes_cats"]
+        self.categorical_data = self.data[self.cat_features]
+        self.categorical_data = self.categorical_data.apply(LabelEncoder().fit_transform)
 
-        return {node: cluster for node, cluster in zip(self.G.nodes(), partition.membership)}
+        self.encoded_features = self.categorical_data.values
 
-    def apply_louvain(self):
-        partition = community_louvain.best_partition(self.G)
-        return partition
+        with open(embeddings_path, "rb") as f:
+            self.embeddings_male = pickle.load(f)
+        self.essay_similiarities = self.compute_essay_similarities()
 
-    def apply_gcn(self):
-        gcn_model = GCN(input_dim=self.data.x.shape[1], hidden_dim=16, output_dim=8)
-        gcn_embeddings = self.train_model(gcn_model)
-        kmeans = KMeans(n_clusters=25)
-        kmeans.fit(gcn_embeddings)
-        gcn_labels = kmeans.labels_
-        return gcn_labels
+        self.feature_similiarities = self.compute_feature_similarities()
+        self.male_idx_to_absolute_idx = {male_idx: abs_idx for male_idx, abs_idx in zip(self.male_indexes, np.arange(len(self.male_indexes)))}
 
-    def apply_graphsage(self):
-        graphsage_model = GraphSAGE(input_dim=self.data.x.shape[1], hidden_dim=16, output_dim=8)
-        graphsage_embeddings = self.train_model(graphsage_model)
-        kmeans = KMeans(n_clusters=25)
-        kmeans.fit(graphsage_embeddings)
-        graphsage_labels = kmeans.labels_
-        return graphsage_labels
+    def compute_feature_similarities(self):
+        """Precomputes the weighted distance metric of features for all males, combining Hamming distance and continuous features."""
 
-    def train_model(self, model, epochs=1000, lr=0.01):
-        """Train the GCN or GraphSAGE model."""
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        model.train()
-        for epoch in range(epochs):
-            optimizer.zero_grad()
-            embeddings = model(self.data)
-            loss = torch.nn.functional.mse_loss(embeddings, embeddings)
-            loss.backward()
-            optimizer.step()
-        return embeddings.detach().numpy()
+        # Compute the Hamming distance matrix
+        hamming_dist = cdist(self.encoded_features, self.encoded_features, metric='hamming')
 
-    def save_clusters(self, partition, method_name):
-        """Saves the community clusters to a CSV file."""
-        df = pd.DataFrame({
-            'vertex_id': list(partition.keys()),
-            'cluster_id': list(partition.values())
-        })
-        df.to_csv(f'{self.output_path}_{method_name}.csv', index=False)
+        # Normalize age and height differences
+        age_diff = np.abs(self.data["age"].values[:, np.newaxis] - self.data["age"].values)
+        height_diff = np.abs(self.data["height"].values[:, np.newaxis] - self.data["height"].values)
 
-    def run(self):
-        leiden_partition = self.apply_leiden()
-        self.save_clusters(leiden_partition, 'Leiden')
+        age_range = self.data["age"].max() - self.data["age"].min()
+        height_range = self.data["height"].max() - self.data["height"].min()
 
-        louvain_partition = self.apply_louvain()
-        self.save_clusters(louvain_partition, 'Louvain')
+        normalized_age_diff = age_diff / age_range if age_range != 0 else age_diff
+        normalized_height_diff = height_diff / height_range if height_range != 0 else height_diff
 
-        gcn_labels = self.apply_gcn()
-        gcn_partition = {i: label for i, label in enumerate(gcn_labels)}
-        self.save_clusters(gcn_partition, 'GCN')
+        # Combine Hamming distance with normalized age and height differences
+        combined_distances = (self.encoded_features.shape[1] * hamming_dist + normalized_age_diff + normalized_height_diff) / (self.encoded_features.shape[1] + 2)
+        return combined_distances
 
-        graphsage_labels = self.apply_graphsage()
-        graphsage_partition = {i: label for i, label in enumerate(graphsage_labels)}
-        self.save_clusters(graphsage_partition, 'GraphSAGE')
+    def compute_essay_similarities(self):
+        return cosine_similarity(self.embeddings_male, self.embeddings_male)
+
+    def build_graph(self):
+        """Builds the graph by adding nodes and fully connecting nodes with the same categorical features."""
+        G = nx.Graph()
+
+        # Add male nodes to the graph
+        for male_idx in self.male_indexes:
+            G.add_node(male_idx)
+
+        # Add edges
+        for m1 in tqdm(self.male_indexes, desc="Building edges"):
+            for m2 in self.male_indexes:
+                if m1 == m2:
+                    continue
+
+                term1 = self.feature_similiarities[self.male_idx_to_absolute_idx[m1]][self.male_idx_to_absolute_idx[m2]]
+                term2 = (self.essay_similiarities[self.male_idx_to_absolute_idx[m1]][self.male_idx_to_absolute_idx[m2]] + 1) / 2
+                if 0.8 * term1 + 0.2 * term2 >= self.weight_threshold:
+                    G.add_edge(m1, m2)
+
+        return G
+
+    def save_graph(self, graph, output_path):
+        """Saves the graph to a file."""
+        nx.write_edgelist(graph, path=output_path, data=[])
 
 
-# Main execution
 def main():
-    graph_path = 'male_graph.edgelist'
-    output_path = 'male_clusters'
-    data = torch_geometric.data.Data()
+    data_path = "../data/preprocessed_data.csv"
+    features_path = "../data/features"
+    embeddings_path = "../embedders/embeddings/embeddings_male.obj"
+    output_graph_path = "male_graph.edgelist"
 
-    community_detector = CommunityDetection(graph_path, output_path, data)
+    # Initialize the graph builder
+    graph_builder = MaleGraph(data_path, features_path, embeddings_path)
 
-    community_detector.run()
+    # Build the graph
+    graph = graph_builder.build_graph()
+
+    # Save the graph to a file
+    graph_builder.save_graph(graph, output_graph_path)
 
 
 if __name__ == "__main__":
