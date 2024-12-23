@@ -13,7 +13,7 @@ def parse_dataset() -> pd.DataFrame:
     from an online dating platform (OkCupid). The data is read into a Pandas DataFrame for further processing.
 
     Returns:
-        pd.DataFrame: A DataFrame containing the parsed dataset. The dataset consists of user profiles, 
+        pd.DataFrame: A DataFrame containing the parsed dataset. The dataset consists of user profiles,
         with various attributes (e.g., gender, age, profile text, etc.) as columns.
 
     Example:
@@ -212,8 +212,22 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
     data["job"] = data["job"].fillna("unspecified")  # ~6k out of 50 didn't specify their occupation, but there are onl 21 unique values. Hence, this column might be important
     data = drop_unnecessary_columns(data)
 
-    # assert data.isna().sum().sum() == 0, "Deal with the NaN values!"
+    # ========================================================================================== #
+    # Computing distances between cities take so much time because there are many
+    # cities from which there are only a couple of males.
+    # It seems reasonable to precompute distances between all the cities,
+    # but for now we will drop all the rare cities from the dataset to speed up the process.
 
+    popular_cities_among_males = data[data["sex"] == "m"]["location"].value_counts().index[0:30]
+
+    def remove_unpopular(s):
+        if s not in popular_cities_among_males:
+            return popular_cities_among_males[0]
+        return s
+    data["location"] = data["location"].apply(remove_unpopular)
+    #  ========================================================================================== # 
+
+    data.to_csv("data/preprocessed_data.csv")
     split_data_by_sex(data=data)
     return data
 

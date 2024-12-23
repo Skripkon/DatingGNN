@@ -4,14 +4,14 @@ import pandas as pd
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
 from tqdm import tqdm
-from parse_dataset import parse_dataset
+from parse_dataset import parse_preprocessed_dataset
 
 # Initialize geolocator with a user agent string to comply with
 # Nominatim's usage policy
 geolocator = Nominatim(user_agent="city_distance_calculator")
 
 
-def get_coordinates(city: str) -> Optional[tuple[float, float]]:
+def get_coordinates(city: str, n_tries=5) -> Optional[tuple[float, float]]:
     """
     Retrieve the geographic coordinates (latitude, longitude) for a given city using Geopy's Nominatim geocoder.
 
@@ -22,9 +22,12 @@ def get_coordinates(city: str) -> Optional[tuple[float, float]]:
         Optional[tuple[float, float]]: A tuple containing the latitude and longitude of the city,
                                        or None if the city could not be geocoded.
     """
-    location = geolocator.geocode(city, timeout=10)
-    if location:
-        return location.latitude, location.longitude
+    while n_tries > 0:
+        location = geolocator.geocode(city, timeout=10)
+        if location:
+            return location.latitude, location.longitude
+        else:
+            n_tries -= 1
     return None
 
 
@@ -93,25 +96,21 @@ def save_distance_matrix(distance_matrix: pd.DataFrame, output_path: str):
         output_path (str): The file path where the distance matrix should be saved.
     """
     distance_matrix.to_csv(output_path)
-    print(f"Distance matrix saved to {output_path}")
+    print(f"INFO:Distance matrix saved to {output_path}")
 
 
 if __name__ == "__main__":
     # Parse dataset to get city names
-    data = parse_dataset()
-    # Assuming 'location' column exists in the dataset
-    locations = data["location"].unique()
+    data = parse_preprocessed_dataset()
+
+    # FOR MALES_GRAPH
+    locations = data[data["sex"] == "m"]["location"].unique()
 
     # Generate the distance matrix for the cities
-    distance_matrix = get_distances_between_cities(locations, testing=True)
+    distance_matrix = get_distances_between_cities(locations, testing=False)
 
     # Define the path to save the distance matrix as a CSV file
-    current_dir = os.path.dirname(os.path.realpath(__file__))
-    output_dir = os.path.join(os.path.dirname(current_dir), "data")
-    output_path = os.path.join(output_dir, "distances.csv")
-
-    # Ensure the output directory exists
-    os.makedirs(output_dir, exist_ok=True)
+    output_path = "data/distances.csv"
 
     # Save the distance matrix to a CSV file
     save_distance_matrix(distance_matrix, output_path)
