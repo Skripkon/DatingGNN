@@ -225,7 +225,7 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
             return popular_cities_among_males[0]
         return s
     data["location"] = data["location"].apply(remove_unpopular)
-    #  ========================================================================================== # 
+    #  ========================================================================================== #
 
     data.to_csv("data/preprocessed_data.csv")
     split_data_by_sex(data=data)
