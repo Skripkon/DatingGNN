@@ -7,7 +7,7 @@ import pickle
 from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder
 
-WEIGHT_THRESHOLD = 0.85
+WEIGHT_THRESHOLD = 0.87
 MIN_COMPONENT_SIZE = 20
 WEIGHTS = np.array([0.4, 0.05, 0.05, 0.4, 0.1])  # categorical features, age, height, essays, location
 

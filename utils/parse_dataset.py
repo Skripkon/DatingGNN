@@ -189,28 +189,25 @@ def preprocess_dataset(data: pd.DataFrame) -> pd.DataFrame:
         data["likes_cats"], categories=["No", "Yes"], ordered=True
     )
 
-    # drop non-traditional orientation for the sake of simplicity
-
-    data = data[data["orientation"] == "straight"]
-    data["religion"] = data["religion"].fillna("agnosticism")  # Expectably, agnosticism is the most popular answer
-    # Drinks
+    drinks_dic = {
+        ("not at all",): "no",
+        ("rarely", "socially"): "sometimes",
+        ("often", "very often", "desperately"): "yes",
+    }
     drinks_categories = CategoricalDtype(
-        categories=[
-            "not at all",
-            "rarely",
-            "socially",
-            "often",
-            "very often",
-            "desperately",
-        ],
-        ordered=True,
+        categories=["no", "sometimes", "yes"], ordered=True
     )
-    data["drinks"] = data.drinks.astype(drinks_categories)
-    data["drinks"] = data["drinks"].fillna(
-        drinks_categories.categories[int(np.median(data["drinks"].cat.codes))]
-    )
+    data["drinks"] = data.drinks.apply(map_cat, args=(drinks_dic,)).astype(drinks_categories)
+    data.drinks = data.drinks.fillna("no").astype(drinks_categories)
+    data.drinks.value_counts(dropna=False).sort_index()
+
     data["job"] = data["job"].fillna("unspecified")  # ~6k out of 50 didn't specify their occupation, but there are onl 21 unique values. Hence, this column might be important
     data = drop_unnecessary_columns(data)
+
+    # drop non-traditional orientation for the sake of simplicity
+    data = data[data["orientation"] == "straight"]
+    # Expectably, agnosticism is the most popular answer
+    data["religion"] = data["religion"].fillna("agnosticism")
 
     # ========================================================================================== #
     # Computing distances between cities take so much time because there are many
@@ -281,7 +278,6 @@ def split_data_by_sex(data: pd.DataFrame):
     # Combine the processed features into a single feature matrix
     features = np.hstack([encoded_categorical, normalized_continuous])
 
-    print("DUMPING")
     # Save the features to a file
     with open("data/features", "wb") as f:
         pickle.dump(obj=features, file=f, protocol=-1)
