@@ -1,4 +1,10 @@
+1. [outdated]
 We compared several embedders specified in the embedders_list.py by using the embeddings they produced
 as features to predict simple targets, such as the user's age or sex.
+The best result was from ["MiniLM1": "all-MiniLM-L6-v2"],
+which we decided to use further in our recommendation system.
+
+2. We compared several embedders specified in the embedders_list.py by using the embeddings they produced
+as features to perform clustering. We then took argmax(modularity)
 The best result was from ["MiniLM1": "all-MiniLM-L6-v2"],
 which we decided to use further in our recommendation system.
